@@ -10,7 +10,7 @@
 (defn create-or-update-resource! [type {:keys [id] :or {id (keyword (gensym (str (name type) "_"))) :create? true} :as resource}]
   (let [resources (type resources_)]
     (swap! resources update-in [id] conj (dissoc resource :id))
-    [id (count (:id resources))]))
+    [id (count (id @resources))]))
 
 (defn get-versioned-resource [type id version]
   (assoc (apply merge (take version (reverse (id @(type resources_))))) :id id :version version))
@@ -44,6 +44,12 @@
       (add-link! src-id src-version type dst-id dst-version)
       (recur links))))
 
+(defn get-links [src-id src-version type ]
+  (first (filter (fn [[cur-src-version cur-type]]
+                   (and (= cur-type type)
+                        (<= cur-src-version src-version)))
+                 (src-id @(:links resources_)))))
+
 ; create rate plan lifecycle service
 (defn create-rate-plan [{:keys [terms-and-conditions] :as rate-plan}]
   (assert terms-and-conditions) ; do business checks 
@@ -54,12 +60,13 @@
   (assert product)
   (assert (:name product))
   (assert rate-plan)
-  (let [[product-id product-version] (create-or-update-product! product)
-        [rate-plan-id rate-plan-version] (create-rate-plan rate-plan)
-        [shop-media-id shop-media-version] (create-shop-media! shop-media)
+  (let [[product-id product-version :as product] (create-or-update-product! product)
+        [rate-plan-id rate-plan-version :as rate-plan] (create-rate-plan rate-plan)
+        [shop-media-id shop-media-version :as shop-media] (create-shop-media! shop-media)
         links (add-links! product-id product-version
                           :rate-plan rate-plan-id rate-plan-version
-                          :shop-media shop-media-id shop-media-version)]))
+                          :shop-media shop-media-id shop-media-version)]
+    product))
 
 ; order repository
 
@@ -76,9 +83,15 @@
   (create-or-update-rate-plan! {:id :rateplan6507 :name "test2"}))
 
 (comment
-  (create-subscription-product! {:product {:name "persistence package"}
-                                :rate-plan {:terms-and-conditions "Lorem ipsum dolor sit amet ..."}
-                                :shop-media {:thumbnail "http://blabla.png"}}))
+  (let [[product-id product-version :as product] (create-subscription-product! {:product {:id :pabc :name "persistence package"}
+                                                                                :rate-plan {:id :rpabc :terms-and-conditions "Lorem ipsum dolor sit amet ..."}
+                                                                                :shop-media {:id :smabc :thumbnail "http://blabla.png"}})
+        [rate-plan-id rate-plan-version :as rate-plan] (create-or-update-rate-plan! {:id :rpabc :terms-and-conditions "22Lorem ipsum dolor sit amet ..."})]
+    (add-links! product-id product-version
+                :rate-plan rate-plan-id rate-plan-version)))
+
+(comment
+  (get-links :pabc 1 :rate-plan))
 
 (comment
   (create-or-update-product! {:id :abc :name "aname"})
