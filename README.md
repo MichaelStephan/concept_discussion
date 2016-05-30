@@ -1,4 +1,4 @@
-# ngom_product
+# concept_discussion
 
 FIXME: description
 
