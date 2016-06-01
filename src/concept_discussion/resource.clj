@@ -16,7 +16,12 @@
               (= rs-count _version))
         [_id (count (get-in (swap! resources_ update-in rs-key conj (dissoc resource :_id :_version)) rs-key))]
         (throw+ {:type :concurrency-exception :hint resource})))
-    (create-or-update-resource! type (assoc resource :_id (first _ref) :_version (second _ref) :_ref nil))))
+    (create-or-update-resource! type (dissoc (assoc resource :_id (first _ref) :_version (second _ref)) :_ref))))
 
 (defn get-versioned-resource [type id version]
-  (assoc (apply merge (take version (reverse (get-in @resources_ [type id])))) :_id id :_version version))
+  (assoc (apply merge (take version (reverse (get-in @resources_ [type id])))) :_ref [id version]))
+
+(defn get-versions [type id]
+  (->
+    (get-in @resources_ [type id])
+    count))

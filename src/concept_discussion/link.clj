@@ -10,7 +10,7 @@
   (let [links (partition 2 links)
         src-id (keyword src-id)]
     (swap! links_ update-in [src-id] (fn [coll x]
-                                       (if (= version (count coll))
+                                       (if (or (nil? version) (= version (count coll)))
                                          (let [last-src-version (-> coll first first)]
                                            (if (or (nil? last-src-version) (<= last-src-version src-version))
                                              (concat coll x)
@@ -28,3 +28,7 @@
                                  (if (nil? version)
                                    links
                                    (take version links))))]))
+
+(defn count-links [src-id]
+  (-> (get @links_ src-id)
+      (count)))
