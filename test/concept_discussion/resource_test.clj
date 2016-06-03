@@ -3,26 +3,31 @@
             [concept-discussion.resource :as r]))
 
 (defn init-fixture [f]
-  (r/reset-resources_)
+  (reset! r/resources_ {})
   (f))
 
 (use-fixtures :each init-fixture)
 
-(deftest test-create-or-update-resource! []
-  (let [data-type :product data {:data "test"}]
-    (testing "creating new resource"
-      (let [[product-id product-version] (r/create-or-update-resource! data-type data)]
-        (is (not (nil? product-id))) 
-        (is (= product-version 1))
-        (is (= (assoc data :_id product-id :_version product-version) (r/get-versioned-resource data-type product-id product-version)))))
-    
-    (testing "updating existing resource"
-      (let [updated-data "test2"
-            [product-id product-version] (r/create-or-update-resource! data-type data)
-            product (r/get-versioned-resource data-type product-id product-version)]
-        (r/create-or-update-resource! data-type (assoc product :data updated-data))
-        (is (= {:_id product-id :_version 2 :data updated-data} (r/get-versioned-resource data-type product-id 2)))))
-   
-    (testing "updating existing resource with optimistic lock failure"
-      (let [[product-id product-version] (r/create-or-update-resource! data-type data)]
-        (is (thrown? RuntimeException (r/create-or-update-resource! data-type {:_id product-id :_version (inc product-version)})))))))
+(deftest test-resource []
+  (testing "creating new resource"
+           (let [[ref-type ref-id ref-version] (r/create! :product {:name "some-name"})]
+                 (is (= ref-type :product))
+                 (is (keyword ref-id))
+                 (is (= ref-version 1))))
+  (testing "create new resource with update, using _ref"
+           (let [ref [:product :some-id1 1]
+                 new-ref (r/update! {:_ref ref :name "some-name"})]
+                 (is (= new-ref ref))))
+  (testing "create new resource with update, without _ref"
+           (let [ref [:product :some-id2 1]
+                 new-ref (r/update! ref {:name "some-name"})]
+                 (is (= new-ref ref))))
+  (testing "update existing resource 2 times"
+           (let [[ref-type ref-id ref-version :as ref] (->
+                       (r/create! :product {:name "some-name1"})
+                       (r/update! {:name "some-name2"})
+                       (r/update! {:name "some-name3"}))]
+             (is (= ref-version 3))
+             (is (= (r/versions ref) 3))
+             (is (= (select-keys (r/get [ref-type ref-id 2]) [:name]) {:name "some-name2"})))))
+                                  

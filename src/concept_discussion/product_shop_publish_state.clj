@@ -2,7 +2,7 @@
   (:require [concept-discussion.link :as l]
             [concept-discussion.resource :as r]
             [concept-discussion.basic-resource :as br]))
-
+;:product-shop-publish-state
 (defn publish-product! [[product-id _ :as product] author]
   (assert product)
   (assert author)

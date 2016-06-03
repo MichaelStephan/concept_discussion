@@ -1,27 +1,45 @@
 (ns concept-discussion.resource
+  (:refer-clojure :exclude [get])
   (:use [slingshot.slingshot :only [throw+]]))
 
 (def resources_ (atom {}))
 
-(defn reset-resources_ []
-  (reset! resources_ {}))
+(defn update!
+  ([[ref-type ref-id ref-version] new-resource & other-resources]
+    (when (or (nil? ref-type) (nil? ref-id))
+      (throw+ {:type :invalid-input :msg "missing _ref, type or id"}))
+    (when (not (coll? new-resource))
+      (throw+ {:type :invalid-input :msg "new-resource is not a map"}))
+    (let [new-resources (concat [new-resource] other-resources)]
+      (when (or (nil? new-resources) (not (coll? new-resources)))
+        (throw+ {:type :invalid-input :msg "missing new-resources or it is no collection" :hint new-resources}))
+      [ref-type ref-id (->
+                         (swap! resources_ update-in [ref-type ref-id] (fn [x y]
+                                                                         (if (or (nil? ref-version) (>= ref-version (count x)))
+                                                                           (concat x  y)
+                                                                           (throw+ {:type :concurrency-exception :hint new-resources}))) new-resources)
+                         (get-in [ref-type ref-id])
+                         (count))]))
+    ([{:keys [_ref] :as new-resource}]
+      (update! _ref (dissoc new-resource :_ref))))
+  
+(defn create! [ref-type new-resource]
+  (when (nil? ref-type)
+    (throw+ {:type :invalid-input :msg "missing ref-type"}))
+  (when (not (map? new-resource))
+    (throw+ {:type :invalid-input :msg "new-resource is not a map"}))
+  (update! (assoc new-resource :_ref [ref-type (keyword (gensym (str (name ref-type) "_")))])))
 
-(defn create-or-update-resource! "In case _id is set the associated resource is updated. In case _id is nil or no resource identified by _id exists the resource is created. Inserts or updates are only successful in case _version is nil or the version of the existing resource matches _version. In case of success the vector [id version] is returned. On error an exception is thrown"
-  [type {:keys [_ref _id _version] :or {_id (keyword (gensym (str (name type) "_")))} :as resource}]
-  (if (nil? _ref)
-    (let [rs-key [type _id]
-          rs (get-in @resources_ rs-key {})
-          rs-count (count rs)]
-      (if (or (nil? _version)
-              (= rs-count _version))
-        [_id (count (get-in (swap! resources_ update-in rs-key conj (dissoc resource :_id :_version)) rs-key))]
-        (throw+ {:type :concurrency-exception :hint resource})))
-    (create-or-update-resource! type (dissoc (assoc resource :_id (first _ref) :_version (second _ref)) :_ref))))
+(defn get [[_ _ ref-version :as ref]]
+  (when (or (nil? ref) (nil? ref-version))
+    (throw+ {:type :invalid-input :msg "missing ref or ref-version"}))
+  (let [ref (take 2 ref)
+        versions (reverse (get-in @resources_ ref))]
+    (assoc (apply merge (take ref-version versions)) :_ref (conj ref (count versions)))))
 
-(defn get-versioned-resource [type id version]
-  (assoc (apply merge (take version (reverse (get-in @resources_ [type id])))) :_ref [id version]))
-
-(defn get-versions [type id]
+(defn versions [ref]
+ (when (nil? ref)
+   (throw+ {:type :invalid-input :msg "missing ref"}))
   (->
-    (get-in @resources_ [type id])
-    count))
+    (get-in @resources_ (take 2 ref))
+    (count)))

@@ -1,19 +1,11 @@
 (ns concept-discussion.subscription-product
-  (:require [concept-discussion.link :as l]
-            [concept-discussion.product-shop-publish-state :as ps]
-            [concept-discussion.rate-plan :as rp]
-            ))
+  (:require [concept-discussion.resource :as r]
+            [concept-discussion.product :as product]))
 
-(defn create-subscription-product! [{:keys [product rate-plan shop-media]}]
+(defn create! [{:keys [product rate-plan-ref shop-media-ref]}]
   (assert product)
-  (assert rate-plan)
-  (assert shop-media)
-  (let [links (l/add-links! 0 product 
-                            :rate-plan rate-plan
-                            :shop-media shop-media)]
-    product))
-
-(defn update-rate-plan! [product rate-plan]
-  (->>
-    (rp/update-rate-plan! rate-plan)
-    (l/add-links! nil product :rate-plan)))
+  (assert rate-plan-ref)
+  (assert shop-media-ref)
+  (let [product-ref (product/create! (merge product {:type :subscription-product}))]
+    (r/update! product-ref {:rate-plan rate-plan-ref
+                            :shop-media shop-media-ref})))
