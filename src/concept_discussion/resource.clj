@@ -30,12 +30,25 @@
     (throw+ {:type :invalid-input :msg "new-resource is not a map"}))
   (update! (assoc new-resource :_ref [ref-type (keyword (gensym (str (name ref-type) "_")))])))
 
+(defn delete! [ref & fields]
+  (when (nil? ref)
+    (throw+ {:type :invalid-input :msg "missing ref"}))
+  (when-not (reduce #(and %1 %2) (map #(or (keyword? %1) (coll? %1)) fields))
+     (throw+ {:type :invalid-input :msg "invalid fields"}))
+  (->>
+    (loop [[field & fields] fields data {}]
+      (if field  
+        (let [field (if (keyword? field) [field] field)]
+          (recur fields (assoc-in data field nil)))
+        data))
+    (update! ref)))
+
 (defn get [[_ _ ref-version :as ref]]
   (when (or (nil? ref) (nil? ref-version))
     (throw+ {:type :invalid-input :msg "missing ref or ref-version"}))
   (let [ref (take 2 ref)
-        versions (reverse (get-in @resources_ ref))]
-    (assoc (apply merge (take ref-version versions)) :_ref (conj ref (count versions)))))
+        versions (take ref-version (get-in @resources_ ref))]
+    (assoc (apply merge versions) :_ref (concat ref [(count versions)]))))
 
 (defn versions [ref]
  (when (nil? ref)
