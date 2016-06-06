@@ -44,11 +44,14 @@
     (update! ref)))
 
 (defn get [[_ _ ref-version :as ref]]
-  (when (or (nil? ref) (nil? ref-version))
-    (throw+ {:type :invalid-input :msg "missing ref or ref-version"}))
+  (when (or (nil? ref))
+    (throw+ {:type :invalid-input :msg "missing ref"}))
   (let [ref (take 2 ref)
-        versions (take ref-version (get-in @resources_ ref))]
-    (assoc (apply merge versions) :_ref (concat ref [(count versions)]))))
+        all-versions (get-in @resources_ ref)
+        selected-versions (if ref-version
+                            (take ref-version all-versions)
+                            all-versions)]
+    (assoc (apply merge selected-versions) :_ref (concat ref [(count selected-versions)]))))
 
 (defn versions [ref]
  (when (nil? ref)
